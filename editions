@@ -1,43 +1,41 @@
 #!/usr/bin/env bash
-# Editions launcher (Wayland-friendly): fixed notice + title + info text on top, banner below
+# Editions launcher: fixed notice + title + info text on top, banner fitted below
 
 LIST_URL="https://raw.githubusercontent.com/EndeavourOS-Community-Editions/editions-list/refs/heads/main/editions.md"
 DEST="$HOME/user_commands.bash"   # where the edition script is saved
-WIN_W=760            # fixed window width
-WIN_H=880            # fixed window height
-DIALOG_BORDER=10     # inner padding of the dialog
-IMG_PADDING=20       # transparent border around the banner (needs ImageMagick)
+WIN_W=640            # fixed window width
+WIN_H=900            # fixed window height
 INFO_MAX_CHARS=300   # maximum length of the edition info text
 TEXT_WIDTH=80        # characters per line before wrapping
-TITLE_SIZE="xx-large"  # edition title size: x-large, xx-large, or e.g. 28pt
+TITLE_SIZE="xx-large"
 
-# Fixed notice shown above the edition title (Pango markup)
+# Fixed notice (Pango markup, hand-wrapped to fit the window width)
 read -r -d '' NOTICE <<'EOF'
-The <a href="https://github.com/EndeavourOS-Community-Editions">EndeavourOS Community Editions</a> repository lists current community-maintained editions.
-Using the "Add Edition to Installer" option executes a script that integrates the selected edition into the installer and sets up the user configuration.
+The <a href="https://github.com/EndeavourOS-Community-Editions">EndeavourOS Community Editions</a> repository lists current
+community-maintained editions.
+Using the "Add Edition to Installer" option executes a script that
+integrates the selected edition into the installer and sets up the
+user configuration.
 
-Only a single community edition can be added at a time. Subsequent additions will overwrite previous selections.
+Only a single community edition can be added at a time. Subsequent
+additions will overwrite previous selections.
 
 <b>Installation Procedure:</b>
 1. Return to the Welcome app.
 2. Click Start the Installer and proceed with an online installation.
 3. Select "no desktop" on the Desktop Environment (DE) selection screen.
 
-<b>Disclaimer:</b> These editions consist of user-contributed content and are not officially controlled, maintained, or endorsed by the EndeavourOS core team.
-The use of this tool is at your own risk and without any warranty or guarantee.
-
+<b>Disclaimer:</b> These editions consist of user-contributed content and
+are not officially controlled, maintained, or endorsed by the EndeavourOS
+core team. The use of this tool is at your own risk and without any
+warranty or guarantee.
 EOF
-
-# Thin separator line between notice and edition title
-printf -v SEP '%*s' "$TEXT_WIDTH" ''
-SEP="<span foreground=\"gray\">${SEP// /─}</span>"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
 # --- Add an edition to the installer -------------------------------------
 # $1 = edition name, $2 = raw isomode script URL
-# Downloads the script to $DEST (not executed) and shows a confirmation.
 add_to_installer() {
     local name="$1" url="$2"
 
@@ -46,8 +44,7 @@ add_to_installer() {
     if curl -fsSL "$url" -o "$DEST.tmp" && [[ -s $DEST.tmp ]]; then
         mv -f "$DEST.tmp" "$DEST"
         yad --image=dialog-information --title="Done" --center --no-markup \
-            --text="$name successfully added to installer." \
-            --button="OK:0"
+            --text="$name successfully added to installer." --button="OK:0"
     else
         rm -f "$DEST.tmp"
         yad --image=dialog-error --title="Error" --center --no-markup \
@@ -59,14 +56,13 @@ add_to_installer() {
 # --- Fetch the list ----------------------------------------------------
 if ! content=$(curl -fsSL "$LIST_URL" 2>&1); then
     yad --image=dialog-error --title="Error" --no-markup \
-        --text="Could not load the editions list:\n\n${content}" \
-        --button="OK:0"
+        --text="Could not load the editions list:\n\n${content}" --button="OK:0"
     exit 1
 fi
 
 # --- Parse --------------------------------------------------------------
 # stdout: Name|SourcesURL|IsomodeURL|ImageURL   (one line per edition)
-# file:   $tmp/info.<index>                     (info text, untruncated)
+# file:   $tmp/info.<index>                     (info text)
 mapfile -t editions < <(
     tr -d '\r' <<< "$content" | awk -v dir="$tmp" -v maxl=1000 '
         function first_url(s) {
@@ -120,31 +116,17 @@ mapfile -t editions < <(
 
 if ((${#editions[@]} == 0)); then
     yad --image=dialog-error --title="Error" \
-        --text="No editions found in the list (format changed?)." \
-        --button="OK:0"
+        --text="No editions found in the list (format changed?)." --button="OK:0"
     exit 1
 fi
 
-# --- Fill arrays, download images in parallel and add padding ----------
-if   command -v magick  >/dev/null; then IM=magick
-elif command -v convert >/dev/null; then IM=convert
-else IM=""; fi
-
+# --- Fill arrays, download banners in parallel ---------------------------
 names=(); srcs=(); isos=(); imgs=()
 i=0
 for e in "${editions[@]}"; do
     IFS='|' read -r name src iso imgurl <<< "$e"
-    names+=("$name"); srcs+=("$src"); isos+=("$iso"); imgs+=("")
-    if [[ -n $imgurl ]]; then
-        (
-            curl -fsSL -o "$tmp/$i" "$imgurl" 2>/dev/null || exit
-            if [[ -n $IM ]]; then
-                "$IM" "$tmp/$i" -bordercolor none -border "$IMG_PADDING" \
-                    "PNG:$tmp/$i.out" 2>/dev/null && mv "$tmp/$i.out" "$tmp/$i"
-            fi
-        ) &
-        imgs[i]="$tmp/$i"
-    fi
+    names+=("$name"); srcs+=("$src"); isos+=("$iso"); imgs+=("$tmp/img.$i")
+    [[ -n $imgurl ]] && curl -fsSL -o "$tmp/img.$i" "$imgurl" 2>/dev/null &
     ((i++))
 done
 wait
@@ -153,43 +135,32 @@ wait
 n=${#names[@]}
 cur=0
 while :; do
-    # Fixed notice, separator, then edition title
-    text="${NOTICE}"$'\n\n'"${SEP}"$'\n'
-    text+="<span size=\"$TITLE_SIZE\" weight=\"bold\">${names[cur]}</span>  <span size=\"medium\" foreground=\"gray\">($((cur + 1))/$n)</span>"
+    text="${NOTICE}"$'\n\n'
+    text+="<span size=\"$TITLE_SIZE\" weight=\"bold\">${names[cur]}</span>  <span foreground=\"gray\">($((cur + 1))/$n)</span>"
 
     if [[ -s $tmp/info.$cur ]]; then
-        # Join lines into a single paragraph
+        # Join lines, truncate at a word boundary, escape markup, wrap
         info="$(tr '\n' ' ' < "$tmp/info.$cur" | sed 's/  */ /g; s/^ //; s/ $//')"
-
-        # Truncate to INFO_MAX_CHARS at a word boundary
         if ((${#info} > INFO_MAX_CHARS)); then
             info="${info:0:INFO_MAX_CHARS}"
             info="${info% *} …"
         fi
-
-        # Escape markup characters, then wrap at TEXT_WIDTH
-        info="$(sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g' <<< "$info" \
-                | fold -s -w "$TEXT_WIDTH")"
-
+        info="$(sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g' <<< "$info" | fold -s -w "$TEXT_WIDTH")"
         text+=$'\n\n'"$info"
     fi
 
     args=(
         --title="EndeavourOS Community Editions"
         --width="$WIN_W" --height="$WIN_H" --fixed --center
-        --borders="$DIALOG_BORDER"
-        --text="$text" --text-width="$TEXT_WIDTH"
-        --uri-handler="xdg-open %s"
+        --text="$text" --uri-handler="xdg-open %s"
         --button="Back!go-previous:10"
         --button="Open sources!web-browser:11"
         --button="Add ${names[cur]} to installer!list-add:12"
         --button="Next!go-next:13"
         --button="Close!window-close:0"
     )
-    # Banner below the text, if available and downloaded
-    if [[ -s ${imgs[cur]} ]]; then
-        args+=(--picture --filename="${imgs[cur]}" --size=fit)
-    fi
+    # Banner fitted into the remaining space
+    [[ -s ${imgs[cur]} ]] && args+=(--picture --filename="${imgs[cur]}" --size=fit)
 
     yad "${args[@]}"
     case $? in
