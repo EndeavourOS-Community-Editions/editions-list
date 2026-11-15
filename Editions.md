@@ -29,15 +29,7 @@
 
 <img src="https://raw.githubusercontent.com/EndeavourOS-Community-Editions/openbox/refs/heads/main/openbox-screenshot.png" alt="banner" width="200"/>
 
-**Info:** 
-
-    Background handled by nitrogen
-    Gtk3 theme handled by lxappearance-obconf
-    Filebrowser = Thunar
-    Default Terminal-Emulator = xfce4-terminal
-    Text-Editor = xed
-    Application Launcher = Rofi
-    composition (transparency) picom see here: picom-settings
+**Info:** Background handled by nitrogen, Gtk3 theme handled by lxappearance-obconf, Filebrowser = Thunar, Default Terminal-Emulator = xfce4-terminal, Text-Editor = xed, Application Launcher = Rofi, composition (transparency) picom see here: picom-settings
 
 **Link to Sources:** https://github.com/EndeavourOS-Community-Editions/openbox
 
