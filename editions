@@ -4,11 +4,12 @@
 LIST_URL="https://raw.githubusercontent.com/EndeavourOS-Community-Editions/editions-list/refs/heads/main/editions.md"
 DEST="$HOME/user_commands.bash"   # where the edition script is saved
 WIN_W=760            # fixed window width
-WIN_H=860            # fixed window height
+WIN_H=880            # fixed window height
 DIALOG_BORDER=10     # inner padding of the dialog
 IMG_PADDING=20       # transparent border around the banner (needs ImageMagick)
 INFO_MAX_CHARS=300   # maximum length of the edition info text
 TEXT_WIDTH=80        # characters per line before wrapping
+TITLE_SIZE="xx-large"  # edition title size: x-large, xx-large, or e.g. 28pt
 
 # Fixed notice shown above the edition title (Pango markup)
 read -r -d '' NOTICE <<'EOF'
@@ -22,7 +23,7 @@ Only a single community edition can be added at a time. Subsequent additions wil
 2. Click Start the Installer and proceed with an online installation.
 3. Select "no desktop" on the Desktop Environment (DE) selection screen.
 
-<b>Disclaimer:</b> These editions consist of user-contributed content and are not officially controlled, maintained, or endorsed by the EndeavourOS core team. 
+<b>Disclaimer:</b> These editions consist of user-contributed content and are not officially controlled, maintained, or endorsed by the EndeavourOS core team.
 The use of this tool is at your own risk and without any warranty or guarantee.
 
 EOF
@@ -154,7 +155,7 @@ cur=0
 while :; do
     # Fixed notice, separator, then edition title
     text="${NOTICE}"$'\n\n'"${SEP}"$'\n'
-    text+="<big><b>${names[cur]}</b></big>    ($((cur + 1))/$n)"
+    text+="<span size=\"$TITLE_SIZE\" weight=\"bold\">${names[cur]}</span>  <span size=\"medium\" foreground=\"gray\">($((cur + 1))/$n)</span>"
 
     if [[ -s $tmp/info.$cur ]]; then
         # Join lines into a single paragraph
