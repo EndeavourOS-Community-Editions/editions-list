@@ -14,6 +14,7 @@ TEXT_WIDTH=80        # characters per line before wrapping
 read -r -d '' NOTICE <<'EOF'
 The <a href="https://github.com/EndeavourOS-Community-Editions">EndeavourOS Community Editions</a> repository lists current community-maintained editions.
 Using the "Add Edition to Installer" option executes a script that integrates the selected edition into the installer and sets up the user configuration.
+
 Only a single community edition can be added at a time. Subsequent additions will overwrite previous selections.
 
 <b>Installation Procedure:</b>
@@ -23,6 +24,7 @@ Only a single community edition can be added at a time. Subsequent additions wil
 
 <b>Disclaimer:</b> These editions consist of user-contributed content and are not officially controlled, maintained, or endorsed by the EndeavourOS core team. 
 The use of this tool is at your own risk and without any warranty or guarantee.
+
 EOF
 
 # Thin separator line between notice and edition title
