@@ -21,8 +21,8 @@ Only a single community edition can be added at a time. Subsequent additions wil
 2. Click Start the Installer and proceed with an online installation.
 3. Select "no desktop" on the Desktop Environment (DE) selection screen.
 
-<b>Disclaimer:</b> These editions consist of user-contributed content and are not officially controlled, maintained, or endorsed by the EndeavourOS core team.
-<b>The use of this tool is at your own risk and without any warranty or guarantee.
+<b>Disclaimer:</b> These editions consist of user-contributed content and are not officially controlled, maintained, or endorsed by the EndeavourOS core team. 
+The use of this tool is at your own risk and without any warranty or guarantee.
 EOF
 
 # Thin separator line between notice and edition title
