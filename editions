@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Editions launcher: fixed notice + title + info text on top, banner fitted below
+# Editions launcher (ISO live session): fixed notice + title + info text on top, banner fitted below
 
 LIST_URL="https://raw.githubusercontent.com/EndeavourOS-Community-Editions/editions-list/refs/heads/main/editions.md"
 DEST="$HOME/user_commands.bash"   # where the edition script is saved
@@ -36,6 +36,7 @@ trap 'rm -rf "$tmp"' EXIT
 
 # --- Add an edition to the installer -------------------------------------
 # $1 = edition name, $2 = raw isomode script URL
+# Downloads the script to $DEST, makes it executable (not run) and confirms.
 add_to_installer() {
     local name="$1" url="$2"
 
@@ -43,6 +44,7 @@ add_to_installer() {
 
     if curl -fsSL "$url" -o "$DEST.tmp" && [[ -s $DEST.tmp ]]; then
         mv -f "$DEST.tmp" "$DEST"
+        chmod +x "$DEST"
         yad --image=dialog-information --title="Done" --center --no-markup \
             --text="$name successfully added to installer." --button="OK:0"
     else
@@ -152,7 +154,7 @@ while :; do
     args=(
         --title="EndeavourOS Community Editions"
         --width="$WIN_W" --height="$WIN_H" --fixed --center
-        --text="$text" --uri-handler="xdg-open %s"
+        --text="$text" --uri-handler="firefox %s"
         --button="Back!go-previous:10"
         --button="Open sources!web-browser:11"
         --button="Add ${names[cur]} to installer!list-add:12"
@@ -166,7 +168,7 @@ while :; do
     case $? in
         10) cur=$(( (cur - 1 + n) % n )) ;;
         13) cur=$(( (cur + 1) % n )) ;;
-        11) xdg-open "${srcs[cur]}" >/dev/null 2>&1 & ;;
+        11) firefox "${srcs[cur]}" >/dev/null 2>&1 & ;;
         12) add_to_installer "${names[cur]}" "${isos[cur]}" ;;
         *)  break ;;
     esac
