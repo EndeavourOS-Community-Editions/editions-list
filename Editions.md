@@ -13,7 +13,7 @@
 
 ## Sway
 
-![sway](https://github.com/user-attachments/assets/9f4bbdac-e478-4918-bdac-da4d83cece42)
+<img src="https://github.com/user-attachments/assets/9f4bbdac-e478-4918-bdac-da4d83cece42" alt="banner" width="200"/>
 
 **Link to Sources:** https://github.com/EndeavourOS-Community-Editions/sway
 
