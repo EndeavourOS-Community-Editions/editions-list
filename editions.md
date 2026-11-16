@@ -1,5 +1,16 @@
 # Currently active maintained editions
 
+## i3 - classic EndeavourOS edition
+
+<img src="https://raw.githubusercontent.com/endeavouros-team/screenshots/master/eos-i3-shot-nov21.png" alt="banner" width="200"/>
+
+**Info:** The classic EndeavourOS i3 setup, classic tiling wm running on X11 (xorg), using rofi for several menus, and easy to hack scripts to make it a fully working Desktop.
+
+**Link to Sources:** https://github.com/endeavouros-team/endeavouros-i3wm-setup
+
+**Raw isomode script link:** https://raw.githubusercontent.com/endeavouros-team/endeavouros-i3wm-setup/refs/heads/main/i3_install_isomode
+
+---
 
 ## Niri
 
