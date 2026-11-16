@@ -12,7 +12,7 @@
 
 ---
 
-## Niri
+## Niri - trungdaohieutrung
 
 <img src="https://raw.githubusercontent.com/EndeavourOS-Community-Editions/editions-list/refs/heads/main/screenshots/niri-by-trungdaohieutrung.png" alt="banner" width="200"/>
 
@@ -24,7 +24,7 @@
 
 ---
 
-## Sway
+## Sway - BluishHumility
 
 <img src="https://github.com/user-attachments/assets/9f4bbdac-e478-4918-bdac-da4d83cece42" alt="banner" width="200"/>
 
@@ -36,7 +36,7 @@
 
 ---
 
-## openbox
+## openbox - flyingcakes85
 
 <img src="https://raw.githubusercontent.com/EndeavourOS-Community-Editions/openbox/refs/heads/main/openbox-screenshot.png" alt="banner" width="200"/>
 
