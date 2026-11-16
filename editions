@@ -1,73 +1,98 @@
 #!/usr/bin/env bash
-# Editions launcher (ISO live session): fixed notice + title + info text on top, banner fitted below
+# Editions launcher (Wayland-friendly)
+# Shows the community editions list (banner + info) and lets the user add ONE
+# edition's isomode script as ~/user_commands.bash for the installer.
 
-LIST_URL="https://raw.githubusercontent.com/EndeavourOS-Community-Editions/editions-list/refs/heads/main/editions.md"
+LIST_URL="${EDITIONS_LIST_URL:-https://raw.githubusercontent.com/EndeavourOS-Community-Editions/editions-list/refs/heads/main/editions.md}"
 DEST="$HOME/user_commands.bash"   # where the edition script is saved
-WIN_W=640            # fixed window width
-WIN_H=900            # fixed window height
+TITLE="EndeavourOS Community Editions"
+WIN_W=760            # fixed window width
+WIN_H=640            # fixed window height (notice is shown once, so pages are compact)
+DIALOG_BORDER=10     # inner padding of the dialog
+IMG_PADDING=20       # transparent border around the banner (needs ImageMagick)
 INFO_MAX_CHARS=300   # maximum length of the edition info text
 TEXT_WIDTH=80        # characters per line before wrapping
-TITLE_SIZE="xx-large"
+SEP=$'\037'          # field separator between parser output fields (not in text)
 
-# Fixed notice (Pango markup, hand-wrapped to fit the window width)
+# Open links in the browser without leaking its stderr into the terminal
+URI_HANDLER=(--uri-handler="sh -c 'xdg-open \"\$1\" >/dev/null 2>&1 &' sh %s")
+
+# Timeouts so a dead connection can never freeze the launcher
+CURL=(curl -fsSL --connect-timeout 10 --max-time 60 --retry 2)
+
+# Shown once at startup (Pango markup)
 read -r -d '' NOTICE <<'EOF'
-The <a href="https://github.com/EndeavourOS-Community-Editions">EndeavourOS Community Editions</a> repository lists current
-community-maintained editions.
-Using the "Add Edition to Installer" option executes a script that
-integrates the selected edition into the installer and sets up the
-user configuration.
+The <a href="https://github.com/EndeavourOS-Community-Editions">EndeavourOS Community Editions</a> repository lists current community-maintained editions.
+Using the "Add Edition to Installer" option downloads a script, 
+that integrates the selected edition into the installer and sets up the user configuration. 
+You can review the script before it is added.
 
-Only a single community edition can be added at a time. Subsequent
-additions will overwrite previous selections.
+Only a single community edition can be added at a time. 
+Subsequent additions will replace previous selections (a backup of the old file is kept).
 
 <b>Installation Procedure:</b>
 1. Return to the Welcome app.
 2. Click Start the Installer and proceed with an online installation.
 3. Select "no desktop" on the Desktop Environment (DE) selection screen.
 
-<b>Disclaimer:</b> These editions consist of user-contributed content and
-are not officially controlled, maintained, or endorsed by the EndeavourOS
-core team. The use of this tool is at your own risk and without any
-warranty or guarantee.
+<b>Disclaimer:</b> These editions consist of user-contributed content and are not officially controlled, 
+maintained, or endorsed by the EndeavourOS core team.
+The use of this tool is at your own risk and without any warranty or guarantee.
 EOF
 
 tmp="$(mktemp -d)"
-trap 'rm -rf "$tmp"' EXIT
+splash=""
 
-# --- Add an edition to the installer -------------------------------------
-# $1 = edition name, $2 = raw isomode script URL
-# Downloads the script to $DEST, makes it executable (not run) and confirms.
-# Returns 0 on success, 1 on failure.
-add_to_installer() {
-    local name="$1" url="$2"
+end_splash() {
+    [[ -n $splash ]] && kill "$splash" 2>/dev/null
+    splash=""
+}
+cleanup() { end_splash; rm -rf "$tmp"; }
+trap cleanup EXIT
 
-    [[ -e $DEST ]] && cp -f "$DEST" "$DEST.bak"
-
-    if curl -fsSL "$url" -o "$DEST.tmp" && [[ -s $DEST.tmp ]]; then
-        mv -f "$DEST.tmp" "$DEST"
-        chmod +x "$DEST"
-        yad --image=dialog-information --title="Done" --center --no-markup \
-            --text="$name successfully added to installer." --button="OK:0"
-        return 0
-    else
-        rm -f "$DEST.tmp"
-        yad --image=dialog-error --title="Error" --center --no-markup \
-            --text="Could not add $name to installer.\n\nDownload failed:\n$url" \
-            --button="OK:0"
-        return 1
-    fi
+show_error() {
+    yad --image=dialog-error --title="Error" --center --no-markup \
+        --text="$1" --button="OK:0"
 }
 
-# --- Fetch the list ----------------------------------------------------
-if ! content=$(curl -fsSL "$LIST_URL" 2>&1); then
-    yad --image=dialog-error --title="Error" --no-markup \
-        --text="Could not load the editions list:\n\n${content}" --button="OK:0"
+# Escape text for Pango markup
+esc() { sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g' <<< "$1"; }
+
+# --- Dependencies -------------------------------------------------------
+for dep in yad curl awk; do
+    if ! command -v "$dep" >/dev/null; then
+        if command -v yad >/dev/null; then
+            show_error "Missing required tool: $dep"
+        else
+            echo "Missing required tool: $dep" >&2
+        fi
+        exit 1
+    fi
+done
+
+# --- Notice (once) -------------------------------------------------------
+yad --title="$TITLE" --width="$WIN_W" --fixed --center \
+    --borders="$DIALOG_BORDER" \
+    --text="$NOTICE" --text-width="$TEXT_WIDTH" \
+    "${URI_HANDLER[@]}" \
+    --button="Close!window-close:1" \
+    --button="Continue!go-next:0" || exit 0
+
+# --- Loading splash ------------------------------------------------------
+yad --progress --pulsate --no-buttons --center --width=320 \
+    --title="$TITLE" --text="Loading editions…" &
+splash=$!
+
+# --- Fetch the list ------------------------------------------------------
+if ! content=$("${CURL[@]}" "$LIST_URL" 2>&1); then
+    end_splash
+    show_error "Could not load the editions list:\n\n${content}"
     exit 1
 fi
 
-# --- Parse --------------------------------------------------------------
-# stdout: Name|SourcesURL|IsomodeURL|ImageURL   (one line per edition)
-# file:   $tmp/info.<index>                     (info text)
+# --- Parse ----------------------------------------------------------------
+# stdout: Name<US>SourcesURL<US>IsomodeURL<US>ImageURL  (one line per edition)
+# file:   $tmp/info.<index>                              (info text, untruncated)
 mapfile -t editions < <(
     tr -d '\r' <<< "$content" | awk -v dir="$tmp" -v maxl=1000 '
         function first_url(s) {
@@ -90,7 +115,7 @@ mapfile -t editions < <(
         }
         function flush(   f, k) {
             if (name != "" && iso != "") {
-                print name "|" src "|" iso "|" img
+                print name "\037" src "\037" iso "\037" img
                 while (ni > 0 && info[ni] == "") ni--
                 if (ni > 0) {
                     f = dir "/info." cnt
@@ -102,7 +127,7 @@ mapfile -t editions < <(
             name = src = iso = img = ""; ni = 0; trunc = 0; ininfo = 0
         }
         BEGIN { cnt = 0 }
-        /^#+[ \t]+/ { flush(); n = $0; sub(/^#+[ \t]+/, "", n); name = n; next }
+        /^#+[ \t]+/ { flush(); n = $0; sub(/^#+[ \t]+/, "", n); name = clean(n); next }
         /<img /     { if (match($0, /src="[^"]+"/)) img = substr($0, RSTART+5, RLENGTH-6); ininfo = 0; next }
         tolower($0) ~ /link to sources/     { src = first_url($0); ininfo = 0; next }
         tolower($0) ~ /isomode script link/ { iso = first_url($0); ininfo = 0; next }
@@ -120,59 +145,152 @@ mapfile -t editions < <(
 )
 
 if ((${#editions[@]} == 0)); then
-    yad --image=dialog-error --title="Error" \
-        --text="No editions found in the list (format changed?)." --button="OK:0"
+    end_splash
+    show_error "No editions found in the list (format changed?)."
     exit 1
 fi
 
-# --- Fill arrays, download banners in parallel ---------------------------
-names=(); srcs=(); isos=(); imgs=()
+# --- Fill arrays, download images in parallel and add padding ------------
+if   command -v magick  >/dev/null; then IM=magick
+elif command -v convert >/dev/null; then IM=convert
+else IM=""; fi
+
+names=(); srcs=(); isos=(); imgs=(); pids=()
 i=0
 for e in "${editions[@]}"; do
-    IFS='|' read -r name src iso imgurl <<< "$e"
-    names+=("$name"); srcs+=("$src"); isos+=("$iso"); imgs+=("$tmp/img.$i")
-    [[ -n $imgurl ]] && curl -fsSL -o "$tmp/img.$i" "$imgurl" 2>/dev/null &
+    IFS="$SEP" read -r name src iso imgurl <<< "$e"
+    names+=("$name"); srcs+=("$src"); isos+=("$iso"); imgs+=("")
+    if [[ -n $imgurl ]]; then
+        (
+            "${CURL[@]}" -o "$tmp/$i" "$imgurl" 2>/dev/null || exit
+            if [[ -n $IM ]]; then
+                "$IM" "$tmp/$i" -bordercolor none -border "$IMG_PADDING" \
+                    "PNG:$tmp/$i.out" 2>/dev/null && mv "$tmp/$i.out" "$tmp/$i"
+            fi
+        ) &
+        pids+=($!)
+        imgs[i]="$tmp/$i"
+    fi
     ((i++))
 done
-wait
+# Wait only for the image jobs (not for the splash window)
+((${#pids[@]})) && wait "${pids[@]}"
+end_splash
 
-# --- Display loop --------------------------------------------------------
+# --- Add an edition to the installer --------------------------------------
+# $1 = index of the edition
+# Downloads + sanity-checks the script, lets the user review it, then installs it.
+add_to_installer() {
+    local idx="$1" name="${names[$1]}" url="${isos[$1]}"
+    local script="$tmp/script.$idx" host note="" bak=""
+
+    if [[ $url != https://* ]]; then
+        show_error "Refusing to download over an insecure connection:\n$url"
+        return
+    fi
+
+    if ! "${CURL[@]}" -o "$script" "$url" || [[ ! -s $script ]]; then
+        rm -f "$script"
+        show_error "Could not add $name to installer.\n\nDownload failed:\n$url"
+        return
+    fi
+
+    # Reject HTML error/login pages and scripts with syntax errors
+    if head -c 512 "$script" | grep -qiE '<(!doctype|html)'; then
+        show_error "The downloaded file for $name is a web page, not a script:\n$url"
+        return
+    fi
+    if ! bash -n "$script" 2>"$tmp/syntax.err"; then
+        show_error "The script for $name has syntax errors and was not added:\n\n$(head -n 5 "$tmp/syntax.err")"
+        return
+    fi
+
+    host="${url#https://}"; host="${host%%/*}"
+    if [[ -e $DEST ]] && ! cmp -s "$script" "$DEST"; then
+        note="\n\nAn existing $DEST will be replaced (a backup is kept)."
+    fi
+
+    # Confirmation with optional review of the script
+    while :; do
+        yad --image=dialog-warning --title="Add $name" --center --no-markup \
+            --width=560 \
+            --text="Add $name to the installer?\n\nSource: $host\nURL: $url\n\nThe script will be executed by the installer. Only continue if you trust the source.$note" \
+            --button="Cancel!window-close:1" \
+            --button="Review script!document-open:2" \
+            --button="Add to installer!list-add:0"
+        case $? in
+            0) break ;;
+            2) yad --text-info --title="$name – script" --filename="$script" \
+                   --wrap --center --width=900 --height=700 \
+                   --button="Close!window-close:0" ;;
+            *) return ;;
+        esac
+    done
+
+    if [[ -e $DEST ]] && ! cmp -s "$script" "$DEST"; then
+        bak="$DEST.$(date +%Y%m%d-%H%M%S).bak"
+        cp -f "$DEST" "$bak"
+    fi
+
+    if cp -f "$script" "$DEST.tmp" && mv -f "$DEST.tmp" "$DEST"; then
+        yad --image=dialog-information --title="Done" --center --no-markup \
+            --text="$name successfully added to installer." \
+            --button="OK:0"
+    else
+        rm -f "$DEST.tmp"
+        show_error "Could not write $DEST."
+    fi
+}
+
+# --- Display loop ----------------------------------------------------------
 n=${#names[@]}
 cur=0
 while :; do
-    text="${NOTICE}"$'\n\n'
-    text+="<span size=\"$TITLE_SIZE\" weight=\"bold\">${names[cur]}</span>  <span foreground=\"gray\">($((cur + 1))/$n)</span>"
+    text="<big><b>$(esc "${names[cur]}")</b></big>    ($((cur + 1))/$n)"
 
     if [[ -s $tmp/info.$cur ]]; then
-        # Join lines, truncate at a word boundary, escape markup, wrap
+        # Join lines into a single paragraph
         info="$(tr '\n' ' ' < "$tmp/info.$cur" | sed 's/  */ /g; s/^ //; s/ $//')"
+
+        # Truncate to INFO_MAX_CHARS at a word boundary
         if ((${#info} > INFO_MAX_CHARS)); then
             info="${info:0:INFO_MAX_CHARS}"
             info="${info% *} …"
         fi
-        info="$(sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g' <<< "$info" | fold -s -w "$TEXT_WIDTH")"
+
+        # Escape markup characters, then wrap at TEXT_WIDTH
+        info="$(esc "$info" | fold -s -w "$TEXT_WIDTH")"
+
         text+=$'\n\n'"$info"
     fi
 
+    # yad button syntax is "label!icon:code", so keep '!' and ':' out of the label
+    label="${names[cur]//!/ }"; label="${label//:/ }"
+
     args=(
-        --title="EndeavourOS Community Editions"
+        --title="$TITLE"
         --width="$WIN_W" --height="$WIN_H" --fixed --center
-        --text="$text" --uri-handler="firefox %s"
-        --button="Back!go-previous:10"
-        --button="Open sources!web-browser:11"
-        --button="Add ${names[cur]} to installer!list-add:12"
-        --button="Next!go-next:13"
-        --button="Close!window-close:0"
+        --borders="$DIALOG_BORDER"
+        --text="$text" --text-width="$TEXT_WIDTH"
+        "${URI_HANDLER[@]}"
     )
-    # Banner fitted into the remaining space
-    [[ -s ${imgs[cur]} ]] && args+=(--picture --filename="${imgs[cur]}" --size=fit)
+    ((n > 1)) && args+=(--button="Back!go-previous:10")
+    [[ -n ${srcs[cur]} ]] && args+=(--button="Open sources!web-browser:11")
+    args+=(--button="Add $label to installer!list-add:12")
+    ((n > 1)) && args+=(--button="Next!go-next:13")
+    args+=(--button="Close!window-close:0")
+
+    # Banner below the text, if available and downloaded
+    if [[ -s ${imgs[cur]} ]]; then
+        args+=(--picture --filename="${imgs[cur]}" --size=fit)
+    fi
 
     yad "${args[@]}"
     case $? in
         10) cur=$(( (cur - 1 + n) % n )) ;;
         13) cur=$(( (cur + 1) % n )) ;;
-        11) firefox "${srcs[cur]}" >/dev/null 2>&1 & ;;
-        12) add_to_installer "${names[cur]}" "${isos[cur]}" && break ;;
+        11) xdg-open "${srcs[cur]}" >/dev/null 2>&1 & ;;
+        12) add_to_installer "$cur" ;;
         *)  break ;;
     esac
 done
