@@ -12,6 +12,7 @@ DIALOG_BORDER=10     # inner padding of the dialog
 IMG_PADDING=20       # transparent border around the banner (needs ImageMagick)
 INFO_MAX_CHARS=300   # maximum length of the edition info text
 TEXT_WIDTH=80        # characters per line before wrapping
+NOTICE_W=520         # width of the startup notice window
 SEP=$'\037'          # field separator between parser output fields (not in text)
 
 # Open links in the browser without leaking its stderr into the terminal
@@ -24,18 +25,19 @@ CURL=(curl -fsSL --connect-timeout 10 --max-time 60 --retry 2)
 read -r -d '' NOTICE <<'EOF'
 The <a href="https://github.com/EndeavourOS-Community-Editions">EndeavourOS Community Editions</a> repository lists current community-maintained editions.
 Using the "Add Edition to Installer" option downloads a script, 
-that integrates the selected edition into the installer and sets up the user configuration. 
+that integrates the selected edition into the installer and sets up the user configuration.
 You can review the script before it is added.
 
-Only a single community edition can be added at a time. 
-Subsequent additions will replace previous selections (a backup of the old file is kept).
+Only a single community edition can be added at a time.
+Subsequent additions will replace previous selections.
 
 <b>Installation Procedure:</b>
 1. Return to the Welcome app.
 2. Click Start the Installer and proceed with an online installation.
 3. Select "no desktop" on the Desktop Environment (DE) selection screen.
 
-<b>Disclaimer:</b> These editions consist of user-contributed content and are not officially controlled, maintained, or endorsed by the EndeavourOS core team.
+<b>Disclaimer:</b> These editions consist of user-contributed content and are not officially controlled, 
+maintained, or endorsed by the EndeavourOS core team.
 The use of this tool is at your own risk and without any warranty or guarantee.
 EOF
 
@@ -70,16 +72,19 @@ for dep in yad curl awk; do
 done
 
 # --- Notice (once) -------------------------------------------------------
-yad --title="$TITLE" --width="$WIN_W" --fixed --center \
+yad --title="$TITLE" --width="$NOTICE_W" --fixed --center \
     --borders="$DIALOG_BORDER" \
-    --text="$NOTICE" --text-width="$TEXT_WIDTH" \
+    --text="$NOTICE" \
     "${URI_HANDLER[@]}" \
     --button="Close!window-close:1" \
     --button="Continue!go-next:0" || exit 0
 
 # --- Loading splash ------------------------------------------------------
-yad --title="$TITLE" --center --width=320 --no-buttons \
-    --text="Loading editions…" &
+# yad only pulses while it receives input, so feed it a line every 0.2 s
+# (the feeder ends by itself with SIGPIPE once the dialog is closed)
+while :; do echo 1; sleep 0.2; done | \
+    yad --progress --pulsate --hide-text --no-buttons --center --width=320 \
+        --title="$TITLE" --text="Loading editions…" &
 splash=$!
 
 # --- Fetch the list ------------------------------------------------------
