@@ -35,8 +35,7 @@ Subsequent additions will replace previous selections (a backup of the old file 
 2. Click Start the Installer and proceed with an online installation.
 3. Select "no desktop" on the Desktop Environment (DE) selection screen.
 
-<b>Disclaimer:</b> These editions consist of user-contributed content and are not officially controlled, 
-maintained, or endorsed by the EndeavourOS core team.
+<b>Disclaimer:</b> These editions consist of user-contributed content and are not officially controlled, maintained, or endorsed by the EndeavourOS core team.
 The use of this tool is at your own risk and without any warranty or guarantee.
 EOF
 
@@ -79,8 +78,8 @@ yad --title="$TITLE" --width="$WIN_W" --fixed --center \
     --button="Continue!go-next:0" || exit 0
 
 # --- Loading splash ------------------------------------------------------
-yad --progress --pulsate --no-buttons --center --width=320 \
-    --title="$TITLE" --text="Loading editions…" &
+yad --title="$TITLE" --center --width=320 --no-buttons \
+    --text="Loading editions…" &
 splash=$!
 
 # --- Fetch the list ------------------------------------------------------
